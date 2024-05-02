@@ -180,12 +180,16 @@
                 const circle = svg.append("circle")
                     .attr("cx", subX)
                     .attr("cy", subY)
-                    .attr("r", quantity / 25000)
+                    .attr("r", (quantity / 25000))
                     .style("fill", innerColors[j % innerColors.length])
                     .attr("class", "inner-circle")
                     .attr("color", innerColors[j % innerColors.length]);
 
-                // Attach mouseover and mouseout events to this circle
+                svg.selectAll(".inner-circle").on("click", function () {
+                    const color = d3.select(this).attr("color");
+                    svg.selectAll(".inner-circle").classed("highlight", false);
+                    svg.selectAll(`.inner-circle[color="${color}"]`).classed("highlight", true);
+                });
                 circle.on("mouseover", function (event) {
                     tooltip.transition()
                         .duration(200)
@@ -199,7 +203,6 @@
                             .duration(500)
                             .style("opacity", 0);
                     });
-
             });
         });
         Object.entries(colorLegend).forEach(([color, label], index) => {
