@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Interactive Radial Plot with Enhanced Features</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        svg {
+            background-color: white;
+        }
+
+        text {
+            font-family: sans-serif;
+            font-size: 14px;
+        }
+
+        .highlight { /* CSS class for highlighting elements */
+            stroke: black;
+            stroke-width: 3;
+        }
+
+        .tooltip {
+            position: absolute;
+            text-align: center;
+            padding: 5px;
+            background: lightgray;
+            border: 1px solid black;
+            border-radius: 5px;
+            pointer-events: none;
+        }
+
+    </style>
+</head>
+<body>
+<div id="tooltip" class="tooltip" style="opacity: 0;"></div>
+<svg id="radialPlot" width="1600" height="1000" viewBox="0 0 1500 1200">
+    <g transform="scale(0.9)">
+    </g>
+</svg>
+
+<script>
+    const svg = d3.select("#radialPlot").append("g");
+    const tooltip = d3.select("#tooltip");
+    const width = 1600;
+    const height = 1000;
+    const center = {x: width / 2, y: height / 2};
+
+    const primaryRadius = Math.min(width, height) / 3;
+    const secondaryRadius = primaryRadius / 2;
+
+    const mainCircleRadius = 4827704 / 25000;
+    const outerCircleRadius = 6;
+
+    const outerColors = ["red", "orange", "yellow", "purple", "brown", "green", "blue", "pink"];
+    const innerColors = [
+        "#e6194b",
+        "#3cb44b",
+        "#ffe119",
+        "#4363d8",
+        "#f58231",
+        "#911eb4",
+        "#46f0f0",
+        "#f032e6",
+        "#bcf60c",
+        "#fabebe"
+    ];
+
+    const mainAngleStep = (2 * Math.PI) / 8;
+
+    const colorLegend = {
+        red: "Year 2019",
+        green: "Year 2020",
+        yellow: "Year 2021",
+        blue: " Year 2022",
+        orange: " Year 2023",
+    };
+    const legendX = 1600;
+    const legendYStart = 100;
+    const legendItemHeight = 40;
+
+    d3.csv("Tree_data.csv").then((data) => {
+        const uniqueTypes = Array.from(new Set(data.map((d) => d.Type)));
+        const quantities = data.map((d) => parseInt(d.Quantities, 10));
+        const chunkSize = 5;
+        const multiDimensionalQuantities = [];
+        for (let i = 0; i < quantities.length; i += chunkSize) {
+            multiDimensionalQuantities.push(quantities.slice(i, i + chunkSize));
+        }
+
+        const summedQuantities = uniqueTypes.map((type) => {
+            return data
+                .filter((d) => d.Type === type)
+                .reduce((acc, cur) => acc + parseInt(cur.Quantities, 10), 0);
+        });
+
+        // Draw the central circle
+        svg.append("circle")
+            .attr("cx", center.x)
+            .attr("cy", center.y)
+            .attr("r", mainCircleRadius)
+            .style("fill", "Azure");
+
+        const outerCircles = uniqueTypes.map((type, i) => {
+            const angle = i * mainAngleStep;
+            const outerX = center.x + primaryRadius * Math.cos(angle);
+            const outerY = center.y + primaryRadius * Math.sin(angle);
+
+            // Draw the connecting line
+            svg.append("line")
+                .attr("x1", center.x)
+                .attr("y1", center.y)
+                .attr("x2", outerX)
+                .attr("y2", outerY)
+                .style("stroke", "black")
+                .style("stroke-width", 1);
+
+            // Draw the branch name along the connecting line
+            const midX = (center.x + outerX) / 2;
+            const midY = (center.y + outerY) / 2;
+            const lineAngle = Math.atan2(outerY - center.y, outerX - center.x) * (180 / Math.PI);
+
+            svg.append("text")
+                .attr("x", midX)
+                .attr("y", midY)
+                .attr("text-anchor", "middle")
+                .attr("transform", `rotate(${lineAngle}, ${midX}, ${midY})`)
+                .text(type);
+
+            // Draw the outer circle with unique color
+            svg.append("circle")
+                .attr("cx", outerX)
+                .attr("cy", outerY)
+                .attr("r", outerCircleRadius)
+                .style("fill", outerColors[i % outerColors.length]);
+
+            return {x: outerX, y: outerY, angle};
+        });
+
+        // Draw inner circles with proportional sizes based on summed quantities
+        outerCircles.forEach((outer, i) => {
+            const innerCircleSize = summedQuantities[i] / 25000;
+
+            svg.append("circle")
+                .attr("cx", outer.x)
+                .attr("cy", outer.y)
+                .attr("r", innerCircleSize)
+                .style("fill", innerColors[i % innerColors.length])
+                .on("mouseover", function (event) {
+                    tooltip.transition()
+                        .duration(200)
+                        .style("opacity", .9);
+                    tooltip.html("Quantity: " + summedQuantities[i])  // Display the summed quantity on hover
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 10) + "px");
+                })
+                .on("mouseout", function () {
+                    tooltip.transition()
+                        .duration(500)
+                        .style("opacity", 0);
+                });
+        });
+
+
+        // Draw additional inner circles with connecting lines
+        outerCircles.forEach((outer, i) => {
+            const baseAngle = outer.angle;
+            multiDimensionalQuantities[i].forEach((quantity, j) => {
+                const subAngle = baseAngle + (j * (Math.PI / 6));
+                const subX = outer.x + (secondaryRadius * Math.cos(subAngle));
+                const subY = outer.y + (secondaryRadius * Math.sin(subAngle));
+
+                svg.append("line")
+                    .attr("x1", outer.x)
+                    .attr("y1", outer.y)
+                    .attr("x2", subX)
+                    .attr("y2", subY)
+                    .style("stroke", "black")
+                    .style("stroke-width", 1);
+
+                const circle = svg.append("circle")
+                    .attr("cx", subX)
+                    .attr("cy", subY)
+                    .attr("r", (quantity / 25000))
+                    .style("fill", innerColors[j % innerColors.length])
+                    .attr("class", "inner-circle")
+                    .attr("color", innerColors[j % innerColors.length]);
+
+                svg.selectAll(".inner-circle").on("click", function () {
+                    const color = d3.select(this).attr("color");
+                    svg.selectAll(".inner-circle").classed("highlight", false);
+                    svg.selectAll(`.inner-circle[color="${color}"]`).classed("highlight", true);
+                });
+                circle.on("mouseover", function (event) {
+                    tooltip.transition()
+                        .duration(200)
+                        .style("opacity", 0.9);
+                    tooltip.html("Quantity: " + quantity)  // Display the specific quantity
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 10) + "px");
+                })
+                    .on("mouseout", function () {
+                        tooltip.transition()
+                            .duration(500)
+                            .style("opacity", 0);
+                    });
+            });
+        });
+        Object.entries(colorLegend).forEach(([color, label], index) => {
+            const yPosition = legendYStart + (index * legendItemHeight);
+
+            svg.append("rect")
+                .attr("x", legendX)
+                .attr("y", yPosition)
+                .attr("width", 30)
+                .attr("height", 30)
+                .style("fill", color);
+
+            svg.append("text")
+                .attr("x", legendX + 40)
+                .attr("y", yPosition + 20)
+                .text(label);
+        });
+    });
+</script>
+</body>
+</html>
